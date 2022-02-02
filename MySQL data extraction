@@ -1,0 +1,58 @@
+"""
+extracts trade data from the Luno API and places it in a MySQL database in PythonAnywhere.com
+"""
+
+import luno_python.client as luno
+import pandas as pd
+from datetime import datetime
+from time import sleep
+import mysql.connector
+
+mysqldb = mysql.connector.connect(
+  host="JakeRead.mysql.pythonanywhere-services.com",
+  user="JakeRead",
+  password="*************",
+  database="JakeRead$*************"
+)
+
+User = luno.Client(api_key_id="*******************", api_key_secret="********************")
+
+cursor = mysqldb.cursor(buffered=True)
+headers = "(timestamp bigint, price float, volume float, is_buy bool, sequence int)"
+cursor.execute('SHOW TABLES')
+tables = [table[0] for table in cursor.fetchall()]
+
+
+def add_data(pair):
+
+    if pair not in tables:
+        cursor.execute(f'CREATE TABLE {pair} ' + headers)
+
+    one_day_ago = int((datetime.now().timestamp()-86350)*1000)
+
+    timestamp_cmd = f'SELECT MAX(timestamp) FROM {pair}'
+    cursor.execute(timestamp_cmd)
+
+    last_timestamp = cursor.fetchall()[0][0]
+
+    if last_timestamp == None or last_timestamp <= one_day_ago:
+        last_timestamp = one_day_ago
+    else:
+        pass
+
+    incoming_data = User.list_trades(pair, since=last_timestamp)["trades"]
+    for row in incoming_data:
+        command = f'INSERT INTO {pair} VALUES ({row["timestamp"]}, {row["price"]}, {row["volume"]}, {row["is_buy"]}, {row["sequence"]})'
+        cursor.execute(command)
+        mysqldb.commit()
+    print(f'{pair}: data added')
+
+
+if __name__  == "__main__":
+    while True:
+        print(datetime.now(),":",sep='')
+        add_data("XBTZAR")
+        add_data("LTCZAR")
+        add_data("ETHZAR")
+        add_data("XRPZAR")
+        sleep(300)
